@@ -1,0 +1,18 @@
+[project]
+name = "langc-explore"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain-community==0.3.1",
+    "langchain-openai",
+    "chromadb",
+    "pypdf",
+    "python-dotenv",
+    "streamlit",
+    "langchain-anthropic",
+    "langgraph",
+    "langchain-huggingface",
+    "sentence-transformers",
+]
