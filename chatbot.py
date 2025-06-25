@@ -1,5 +1,3 @@
-import os
-from dotenv import load_dotenv
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
@@ -13,8 +11,7 @@ from langchain_community.vectorstores import Chroma
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
-
-load_dotenv()
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 class KnowledgeBaseChatbot:
@@ -29,7 +26,7 @@ class KnowledgeBaseChatbot:
         self.memory = ConversationBufferMemory(
             memory_key="chat_history", return_messages=True, output_key="answer"
         )
-        # self.memory = MemorySaver()
+        self.chat_history = []
 
     def load_documents(self, directory_path):
         """Load documents from a directory"""
@@ -84,7 +81,15 @@ class KnowledgeBaseChatbot:
             )
 
         response = self.conversation_chain.invoke(
-            {"question": question, "chat_history": ""}
+            {"question": question, "chat_history": self.chat_history}
         )
+
+        self.chat_history.append(
+            [HumanMessage(content=question), AIMessage(content=response["answer"])]
+        )
+
+        print(f"Chat History: {self.chat_history}\n\n")
+
+        print(f"Response: {response['source_documents']}\n\n")
 
         return response["answer"], response["source_documents"]
