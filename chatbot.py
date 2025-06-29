@@ -8,33 +8,40 @@ from langchain_community.document_loaders import (
     TextLoader,
     DirectoryLoader,
 )
-from langgraph.graph import START, StateGraph
+from langgraph.graph import START, END, StateGraph, MessagesState
 from langchain_core.documents import Document
+from langchain_core.tools import tool
 from typing_extensions import List, TypedDict
-
-
-# Define state for application
-class State(TypedDict):
-    question: str
-    context: List[Document]
-    answer: str
+from langchain_core.messages import SystemMessage
+from langgraph.prebuilt import ToolNode, tools_condition
+import cv2
 
 
 class KnowledgeBaseChatbot:
     def __init__(self):
+        print("init_chat_model...")
         self.llm = init_chat_model(
             "claude-3-5-haiku-latest", model_provider="anthropic"
         )
+
+        print("init HF Embeddings...")
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-mpnet-base-v2"
         )
+
+        print("init ChromaDB...")
         self.vector_store = Chroma(
             collection_name="docs",
             embedding_function=self.embeddings,
             persist_directory="./chroma_db",
         )
-        self.graph = self.build_graph()
-        self.prompt = hub.pull("rlm/rag-prompt")
+
+        print("Init ToolNode...")
+        self.retrieve = self._create_retriever()
+        self.tools = ToolNode([self.retrieve])
+
+        print("Build graph...")
+        self.build_graph()
 
     def load_documents(self, directory_path):
         """Load documents from a directory"""
@@ -61,30 +68,119 @@ class KnowledgeBaseChatbot:
         result = self.vector_store.add_documents(chunks)
         print(f"Added {len(result)} chunks to the vector store.")
 
-    def retrieve(self, state: State):
-        retrieved_docs = self.vector_store.similarity_search(state["question"])
-        return {"context": retrieved_docs}
+    def _create_retriever(self):
 
-    def generate(self, state: State):
-        """Ask a question and get an answer from the conversation chain"""
-        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
-        messages = self.prompt.invoke(
-            {"question": state["question"], "context": docs_content}
+        @tool(response_format="content_and_artifact")
+        def retrieve(query: str):
+            """Retrieve information from the document knowledge base.
+            Use this tool whenever you need to answer questions about documents, papers, or any content-related queries.
+            """
+
+            retrieved_docs = self.vector_store.similarity_search(query, k=3)
+            serialized = "\n\n".join(
+                (f"Source: {doc.metadata}\n" f"Content: {doc.page_content}")
+                for doc in retrieved_docs
+            )
+            return serialized, retrieved_docs
+
+        return retrieve
+
+    def query_or_respond(self, state: MessagesState):
+        """Generate tool call for retrieval or respond."""
+
+        print(f"State messages in query_or_respond: {state['messages']}")
+
+        messages = state["messages"]
+        if not any(msg.type == "system" for msg in messages):
+            system_msg = SystemMessage(
+                content="You are a helpful assistant with access to a document knowledge base. "
+                "When users ask questions about documents, papers, research, or any content that might be in the knowledge base, "
+                "you MUST use the retrieve tool to search for relevant information first. "
+                "Always use the retrieve tool for questions that could be answered from documents."
+            )
+            messages = [system_msg] + messages
+
+        llm_with_tools = self.llm.bind_tools([self.retrieve])
+        response = llm_with_tools.invoke(state["messages"])
+        # MessagesState appends messages to state instead of overwriting
+        return {"messages": [response]}
+
+    def generate(self, state: MessagesState):
+        """Generate answer."""
+        # Get generated ToolMessages
+        print("Trigger generate method...")
+        recent_tool_messages = []
+        for message in reversed(state["messages"]):
+            if message.type == "tool":
+                recent_tool_messages.append(message)
+            else:
+                break
+        tool_messages = recent_tool_messages[::-1]
+
+        # Format into prompt
+        docs_content = "\n\n".join(doc.content for doc in tool_messages)
+        system_message_content = (
+            "You are an assistant for question-answering tasks. "
+            "Use the following pieces of retrieved context to answer "
+            "the question. If you don't know the answer, say that you "
+            "don't know."
+            "\n\n"
+            f"{docs_content}"
         )
-        response = self.llm.invoke(messages)
-        return {"answer": response.content}
+        conversation_messages = [
+            message
+            for message in state["messages"]
+            if message.type in ("human", "system")
+            or (message.type == "ai" and not message.tool_calls)
+        ]
+        prompt = [SystemMessage(system_message_content)] + conversation_messages
+
+        # Run
+        response = self.llm.invoke(prompt)
+        return {"messages": [response]}
 
     def build_graph(self):
         # Compile application and test
-        graph_builder = StateGraph(State).add_sequence([self.retrieve, self.generate])
-        graph_builder.add_edge(START, "retrieve")
-        graph = graph_builder.compile()
+        # graph_builder = StateGraph(State).add_sequence([self.retrieve, self.generate])
 
-        return graph
+        graph_builder = StateGraph(MessagesState)
+        graph_builder.add_node("query_or_respond", self.query_or_respond)
+        graph_builder.add_node("tools", self.tools)
+        graph_builder.add_node("generate", self.generate)
+
+        graph_builder.set_entry_point("query_or_respond")
+        graph_builder.add_conditional_edges(
+            "query_or_respond",
+            tools_condition,
+            {END: END, "tools": "tools"},
+        )
+        graph_builder.add_edge("tools", "generate")
+        graph_builder.add_edge("generate", END)
+
+        graph = graph_builder.compile()
+        graph.get_graph().print_ascii()
+
+        self.graph = graph
 
     def ask_question(self, question):
-        response = self.graph.invoke({"question": question})
-        print(f"Response from graph: {response}")
-        print(f"Answer: {response['answer']}")
+        # for step in self.graph.stream(
+        #     {"messages": [{"role": "user", "content": question}]}, stream_mode="values"
+        # ):
+        #     step["messages"][-1].pretty_print()
 
-        return response["answer"], response["context"]
+        response = self.graph.invoke(
+            {"messages": [{"role": "user", "content": question}]}
+        )
+
+        latest_response = response["messages"][-1]
+        print(f"Response from graph: {response}\n")
+        print(f"Latest response: {latest_response}\n")
+
+        retrieved_docs = []
+        for msg in response["messages"]:
+            if msg.type == "tool" and hasattr(msg, "artifact") and msg.artifact:
+                retrieved_docs.extend(msg.artifact)
+
+        print(f"Total retrieved documents: {len(retrieved_docs)}")
+
+        return latest_response.content, retrieved_docs
