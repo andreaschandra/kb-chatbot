@@ -216,6 +216,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Anthropic** for Claude 3.5 Haiku LLM
 - **LangChain** for the RAG framework
+- **LangGraph** for the RAG framework
 - **Streamlit** for the web interface
 - **ChromaDB** for vector storage
 - **Hugging Face** for embedding models
