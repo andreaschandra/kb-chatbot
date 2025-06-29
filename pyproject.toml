@@ -6,13 +6,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "langchain-community==0.3.1",
-    "langchain-openai",
-    "chromadb",
-    "pypdf",
-    "python-dotenv",
-    "streamlit",
     "langchain-anthropic",
-    "langgraph",
+    "langchain-chroma",
     "langchain-huggingface",
     "sentence-transformers",
+    "langgraph",
+    "langsmith",
+    "chromadb",
+    "pypdf",
+    "streamlit",
+    "python-dotenv",
 ]

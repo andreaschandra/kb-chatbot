@@ -1,36 +1,44 @@
+from langchain import hub
+from langchain.chat_models import init_chat_model
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
     DirectoryLoader,
 )
+from langgraph.graph import START, StateGraph
+from langchain_core.documents import Document
+from typing_extensions import List, TypedDict
 
-from langchain_anthropic import ChatAnthropic
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
 
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from langchain_text_splitters.character import RecursiveCharacterTextSplitter
-from langchain_core.messages import HumanMessage, AIMessage
+# Define state for application
+class State(TypedDict):
+    question: str
+    context: List[Document]
+    answer: str
 
 
 class KnowledgeBaseChatbot:
     def __init__(self):
+        self.llm = init_chat_model(
+            "claude-3-5-haiku-latest", model_provider="anthropic"
+        )
         self.embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-mpnet-base-v2"
         )
-
-        self.llm = ChatAnthropic(model="claude-3-5-haiku-latest")
-        self.vector_store = None
-        self.conversation_chain = None
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history", return_messages=True, output_key="answer"
+        self.vector_store = Chroma(
+            collection_name="docs",
+            embedding_function=self.embeddings,
+            persist_directory="./chroma_db",
         )
-        self.chat_history = []
+        self.graph = self.build_graph()
+        self.prompt = hub.pull("rlm/rag-prompt")
 
     def load_documents(self, directory_path):
         """Load documents from a directory"""
-
+        # This method should be implemented to load documents from the specified directory
         loaders = [
             DirectoryLoader(directory_path, glob="**/*.pdf", loader_cls=PyPDFLoader),
             DirectoryLoader(directory_path, glob="**/*.txt", loader_cls=TextLoader),
@@ -44,52 +52,39 @@ class KnowledgeBaseChatbot:
 
     def process_documents(self, documents):
         """Split documents into chunks and create embeddings"""
+        # This method should be implemented to process the documents and create embeddings
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=200, length_function=len
         )
         chunks = text_splitter.split_documents(documents)
 
-        self.vector_store = Chroma.from_documents(
-            documents=chunks, embedding=self.embeddings, persist_directory=".chroma_db"
+        result = self.vector_store.add_documents(chunks)
+        print(f"Added {len(result)} chunks to the vector store.")
+
+    def retrieve(self, state: State):
+        retrieved_docs = self.vector_store.similarity_search(state["question"])
+        return {"context": retrieved_docs}
+
+    def generate(self, state: State):
+        """Ask a question and get an answer from the conversation chain"""
+        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+        messages = self.prompt.invoke(
+            {"question": state["question"], "context": docs_content}
         )
+        response = self.llm.invoke(messages)
+        return {"answer": response.content}
 
-        return len(chunks)
+    def build_graph(self):
+        # Compile application and test
+        graph_builder = StateGraph(State).add_sequence([self.retrieve, self.generate])
+        graph_builder.add_edge(START, "retrieve")
+        graph = graph_builder.compile()
 
-    def setup_conversation_chain(self):
-        """Setup the conversational retrieval chain"""
-        if self.vector_store is None:
-            raise ValueError(
-                "Vector store is not initialized. Load and process documents first."
-            )
-
-        retriever = self.vector_store.as_retriever(
-            search_type="similarity", search_kwargs={"k": 3}
-        )
-
-        self.conversation_chain = ConversationalRetrievalChain.from_llm(
-            llm=self.llm,
-            retriever=retriever,
-            memory=self.memory,
-            return_source_documents=True,
-            output_key="answer",
-        )
+        return graph
 
     def ask_question(self, question):
-        if self.conversation_chain is None:
-            raise ValueError(
-                "Conversation chain is not set up. Call setup_conversation_chain() first."
-            )
+        response = self.graph.invoke({"question": question})
+        print(f"Response from graph: {response}")
+        print(f"Answer: {response['answer']}")
 
-        response = self.conversation_chain.invoke(
-            {"question": question, "chat_history": self.chat_history}
-        )
-
-        self.chat_history.append(
-            [HumanMessage(content=question), AIMessage(content=response["answer"])]
-        )
-
-        print(f"Chat History: {self.chat_history}\n\n")
-
-        print(f"Response: {response['source_documents']}\n\n")
-
-        return response["answer"], response["source_documents"]
+        return response["answer"], response["context"]
