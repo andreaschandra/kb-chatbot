@@ -1,10 +1,11 @@
 [project]
-name = "langc-explore"
+name = "kb-chatbot"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "torch==2.7.1",
     "langchain-community==0.3.1",
     "langchain-anthropic",
     "langchain-chroma",
@@ -17,3 +18,6 @@ dependencies = [
     "streamlit",
     "python-dotenv",
 ]
+
+[tool.pip]
+index-url = "https://download.pytorch.org/whl/cpu"
