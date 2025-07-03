@@ -14,7 +14,6 @@ from langchain_core.tools import tool
 from typing_extensions import List, TypedDict
 from langchain_core.messages import SystemMessage
 from langgraph.prebuilt import ToolNode, tools_condition
-import cv2
 
 
 class KnowledgeBaseChatbot:
