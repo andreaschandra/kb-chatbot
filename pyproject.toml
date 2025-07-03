@@ -17,6 +17,7 @@ dependencies = [
     "pypdf",
     "streamlit",
     "python-dotenv",
+    "grandalf",
 ]
 
 [tool.pip]
