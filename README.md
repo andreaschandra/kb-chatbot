@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![Knowledge Base Chatbot Demo](snapshot.png)
-
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
 [![LangChain](https://img.shields.io/badge/LangChain-Latest-green.svg)](https://langchain.com)
@@ -52,6 +50,10 @@ This **AI-Powered Knowledge Base Chatbot** revolutionizes how organizations inte
 - **Drag-and-Drop Upload**: Effortless document management
 - **Chat History**: Persistent conversation threads
 - **Source Exploration**: Expandable source document previews
+
+## 🖥️ Interface
+
+![Knowledge Base Chatbot Demo](snapshot.png)
 
 ## 🏗 Technical Architecture
 
