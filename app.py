@@ -1,6 +1,8 @@
 import os
-import streamlit as st
 import shutil
+from uuid import uuid4
+
+import streamlit as st
 from dotenv import load_dotenv
 
 from chatbot import KnowledgeBaseChatbot
@@ -16,6 +18,9 @@ def main():
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    if "thread_id" not in st.session_state:
+        st.session_state.thread_id = str(uuid4())
 
     with st.sidebar:
         st.header("Upload documents")

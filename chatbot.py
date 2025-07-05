@@ -1,18 +1,18 @@
-from langchain import hub
+from uuid import uuid4
+
 from langchain.chat_models import init_chat_model
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
+    DirectoryLoader,
     PyPDFLoader,
     TextLoader,
-    DirectoryLoader,
 )
-from langgraph.graph import START, END, StateGraph, MessagesState
-from langchain_core.documents import Document
-from langchain_core.tools import tool
-from typing_extensions import List, TypedDict
 from langchain_core.messages import SystemMessage
+from langchain_core.tools import tool
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 
@@ -38,6 +38,8 @@ class KnowledgeBaseChatbot:
         print("Init ToolNode...")
         self.retrieve = self._create_retriever()
         self.tools = ToolNode([self.retrieve])
+
+        self.memory = MemorySaver()
 
         print("Build graph...")
         self.build_graph()
@@ -66,6 +68,8 @@ class KnowledgeBaseChatbot:
 
         result = self.vector_store.add_documents(chunks)
         print(f"Added {len(result)} chunks to the vector store.")
+
+        return len(result)
 
     def _create_retriever(self):
 
@@ -156,19 +160,15 @@ class KnowledgeBaseChatbot:
         graph_builder.add_edge("tools", "generate")
         graph_builder.add_edge("generate", END)
 
-        graph = graph_builder.compile()
+        graph = graph_builder.compile(checkpointer=self.memory)
         graph.get_graph().print_ascii()
 
         self.graph = graph
 
-    def ask_question(self, question):
-        # for step in self.graph.stream(
-        #     {"messages": [{"role": "user", "content": question}]}, stream_mode="values"
-        # ):
-        #     step["messages"][-1].pretty_print()
-
+    def ask_question(self, question, thread_id=str(uuid4())):
+        config = {"configurable": {"thread_id": thread_id}}
         response = self.graph.invoke(
-            {"messages": [{"role": "user", "content": question}]}
+            {"messages": [{"role": "user", "content": question}]}, config
         )
 
         latest_response = response["messages"][-1]
