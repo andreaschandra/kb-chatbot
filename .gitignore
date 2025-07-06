@@ -10,6 +10,6 @@ wheels/
 .venv
 
 # custom
-chroma_db/
+.chroma_db
 .env
 .ipynb_checkpoints
