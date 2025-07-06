@@ -1,12 +1,16 @@
+"""Streamlit app for a Knowledge Base Chatbot using LangChain."""
+
 import os
-import streamlit as st
 import shutil
+
+import streamlit as st
 from dotenv import load_dotenv
 
 from chatbot import KnowledgeBaseChatbot
 
 
 def main():
+    """User interface for the Knowledge Base Chatbot using Streamlit."""
     st.set_page_config(page_title="Knowledge Base Chatbot", page_icon=":robot_face:")
     st.title("Knowledge Base Chatbot")
     st.sidebar.title("📚 Document Management")
@@ -76,5 +80,5 @@ def main():
 
 
 if __name__ == "__main__":
-    load_dotenv()  # Load environment variables from .env file
+    load_dotenv()
     main()

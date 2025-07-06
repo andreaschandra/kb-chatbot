@@ -18,6 +18,7 @@ dependencies = [
     "streamlit",
     "python-dotenv",
     "grandalf",
+    "pre-commit>=4.2.0",
 ]
 
 [tool.pip]

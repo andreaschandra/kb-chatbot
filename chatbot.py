@@ -1,22 +1,25 @@
-from langchain import hub
+"""Main flow and functionality for knowledge base chatbot."""
+
+from typing import Dict, List, Tuple
+
 from langchain.chat_models import init_chat_model
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_text_splitters.character import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import (
+    DirectoryLoader,
     PyPDFLoader,
     TextLoader,
-    DirectoryLoader,
 )
-from langgraph.graph import START, END, StateGraph, MessagesState
-from langchain_core.documents import Document
-from langchain_core.tools import tool
-from typing_extensions import List, TypedDict
 from langchain_core.messages import SystemMessage
+from langchain_core.tools import tool
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 
 class KnowledgeBaseChatbot:
+    """Chatbot class for setting up embeddings, vector store, llm, graph, and tools."""
+
     def __init__(self):
         print("init_chat_model...")
         self.llm = init_chat_model(
@@ -42,8 +45,16 @@ class KnowledgeBaseChatbot:
         print("Build graph...")
         self.build_graph()
 
-    def load_documents(self, directory_path):
-        """Load documents from a directory"""
+    def load_documents(self, directory_path: str) -> List:
+        """Load documents from a directory.
+
+        Args:
+            directory_path (str): directory location to load documents.
+
+        Returns:
+            _type_: _description_
+        """
+
         # This method should be implemented to load documents from the specified directory
         loaders = [
             DirectoryLoader(directory_path, glob="**/*.pdf", loader_cls=PyPDFLoader),
@@ -56,8 +67,16 @@ class KnowledgeBaseChatbot:
 
         return documents
 
-    def process_documents(self, documents):
-        """Split documents into chunks and create embeddings"""
+    def process_documents(self, documents: List) -> int:
+        """Split documents into chunks and transform into embeddings and store in vector store.
+
+        Args:
+            documents (List): list of documents to process.
+
+        Returns:
+            int: Number of chunks added to the vector store.
+        """
+
         # This method should be implemented to process the documents and create embeddings
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000, chunk_overlap=200, length_function=len
@@ -67,12 +86,16 @@ class KnowledgeBaseChatbot:
         result = self.vector_store.add_documents(chunks)
         print(f"Added {len(result)} chunks to the vector store.")
 
+        return len(result)
+
     def _create_retriever(self):
+        """Private method to create a retriever tool."""
 
         @tool(response_format="content_and_artifact")
         def retrieve(query: str):
             """Retrieve information from the document knowledge base.
-            Use this tool whenever you need to answer questions about documents, papers, or any content-related queries.
+            Use this tool whenever you need to answer questions
+            about documents, papers, or any content-related queries.
             """
 
             retrieved_docs = self.vector_store.similarity_search(query, k=3)
@@ -84,8 +107,16 @@ class KnowledgeBaseChatbot:
 
         return retrieve
 
-    def query_or_respond(self, state: MessagesState):
-        """Generate tool call for retrieval or respond."""
+    def query_or_respond(self, state: MessagesState) -> Dict:
+        """entry point for the chatbot to either
+        query the knowledge base or respond to a user message.
+
+        Args:
+            state (MessagesState): Previous state of the chatbot, including messages.
+
+        Returns:
+            _type_: _description_
+        """
 
         print(f"State messages in query_or_respond: {state['messages']}")
 
@@ -93,7 +124,8 @@ class KnowledgeBaseChatbot:
         if not any(msg.type == "system" for msg in messages):
             system_msg = SystemMessage(
                 content="You are a helpful assistant with access to a document knowledge base. "
-                "When users ask questions about documents, papers, research, or any content that might be in the knowledge base, "
+                "When users ask questions about documents, papers, research, "
+                "or any content that might be in the knowledge base, "
                 "you MUST use the retrieve tool to search for relevant information first. "
                 "Always use the retrieve tool for questions that could be answered from documents."
             )
@@ -104,8 +136,16 @@ class KnowledgeBaseChatbot:
         # MessagesState appends messages to state instead of overwriting
         return {"messages": [response]}
 
-    def generate(self, state: MessagesState):
-        """Generate answer."""
+    def generate(self, state: MessagesState) -> Dict:
+        """Return a response when the user asks a query
+        that requires information from the knowledge base.
+
+        Args:
+            state (MessagesState): Previous state of the chatbot, including messages.
+
+        Returns:
+            Dict: A dictionary containing the generated response message.
+        """
         # Get generated ToolMessages
         print("Trigger generate method...")
         recent_tool_messages = []
@@ -139,8 +179,7 @@ class KnowledgeBaseChatbot:
         return {"messages": [response]}
 
     def build_graph(self):
-        # Compile application and test
-        # graph_builder = StateGraph(State).add_sequence([self.retrieve, self.generate])
+        """Build the state graph, node and edges for the chatbot."""
 
         graph_builder = StateGraph(MessagesState)
         graph_builder.add_node("query_or_respond", self.query_or_respond)
@@ -161,12 +200,15 @@ class KnowledgeBaseChatbot:
 
         self.graph = graph
 
-    def ask_question(self, question):
-        # for step in self.graph.stream(
-        #     {"messages": [{"role": "user", "content": question}]}, stream_mode="values"
-        # ):
-        #     step["messages"][-1].pretty_print()
+    def ask_question(self, question: str) -> Tuple[str, List]:
+        """Return a response to a user includes retrieved documents from the knowledge base.
 
+        Args:
+            question (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         response = self.graph.invoke(
             {"messages": [{"role": "user", "content": question}]}
         )
