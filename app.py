@@ -64,7 +64,9 @@ def main():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    answer, sources = st.session_state.chatbot.ask_question(prompt)
+                    answer, sources = st.session_state.chatbot.ask_question(
+                        prompt, thread_id=st.session_state.thread_id
+                    )
                     st.markdown(answer)
 
                     if sources:

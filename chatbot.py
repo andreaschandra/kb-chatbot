@@ -10,6 +10,7 @@ from langchain_community.document_loaders import (
     PyPDFLoader,
     TextLoader,
 )
+from langchain_core.documents import Document
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -39,7 +40,7 @@ class KnowledgeBaseChatbot:
         self.vector_store = Chroma(
             collection_name="docs",
             embedding_function=embeddings,
-            persist_directory="./chroma_db",
+            persist_directory="./.chroma_db",
         )
 
         print("Init ToolNode...")
@@ -112,6 +113,7 @@ class KnowledgeBaseChatbot:
                 (f"Source: {doc.metadata}\n" f"Content: {doc.page_content}")
                 for doc in retrieved_docs
             )
+            retrieved_docs = [doc.__dict__ for doc in retrieved_docs]
             return serialized, retrieved_docs
 
         return retrieve
@@ -127,7 +129,7 @@ class KnowledgeBaseChatbot:
             _type_: _description_
         """
 
-        print(f"State messages in query_or_respond: {state['messages']}")
+        print(f"State messages in query_or_respond: {state['messages']}\n")
 
         messages = state["messages"]
         if not any(msg.type == "system" for msg in messages):
@@ -235,11 +237,48 @@ class KnowledgeBaseChatbot:
         print(f"Response from graph: {response}\n")
         print(f"Latest response: {latest_response}\n")
 
-        retrieved_docs = []
-        for msg in response["messages"]:
-            if msg.type == "tool" and hasattr(msg, "artifact") and msg.artifact:
-                retrieved_docs.extend(msg.artifact)
+        latest_tool_msg = next(
+            (
+                msg
+                for msg in reversed(response["messages"])
+                if msg.type == "tool" and hasattr(msg, "artifact") and msg.artifact
+            ),
+            None,
+        )
 
-        print(f"Total retrieved documents: {len(retrieved_docs)}")
+        retrieved_docs = []
+        if latest_tool_msg:
+            for artifact in latest_tool_msg.artifact:
+                if isinstance(artifact, dict):
+                    doc = Document(
+                        id=artifact["id"],
+                        page_content=artifact["page_content"],
+                        metadata=artifact["metadata"],
+                        page_content_type=artifact["page_content"],
+                    )
+                else:
+                    doc = artifact
+                retrieved_docs.append(doc)
+
+        # retrieved_docs = []
+        # for msg in response["messages"]:
+        #     if msg.type == "tool" and hasattr(msg, "artifact") and msg.artifact:
+        #         for artifact in msg.artifact:
+        #             if isinstance(artifact, dict):
+        #                 # Convert dict to Document if necessary
+        #                 doc = Document(
+        #                     id=artifact["id"],
+        #                     page_content=artifact["page_content"],
+        #                     metadata=artifact["metadata"],
+        #                     page_content_type=artifact["page_content"],
+        #                 )
+        #             else:
+        #                 doc = artifact
+
+        #             retrieved_docs.append(doc)
+
+        print(f"Total retrieved documents: {len(retrieved_docs)}\n")
+        print(f"Retrieved documents: {retrieved_docs}\n")
+        print("=" * 50)
 
         return latest_response.content, retrieved_docs
