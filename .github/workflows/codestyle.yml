@@ -17,10 +17,10 @@ jobs:
       run: uv sync --locked --all-extras --dev
 
     - name: Run pylint
-      run: uvx pylint --rcfile=.pylintrc
+      run: uvx pylint --rcfile=.pylintrc *.py
 
     - name: Run black
-      run: uvx black --check --diff --color
+      run: uvx black --check --diff --color *.py
 
     - name: Run isort
-      run: uvx isort --check --diff
+      run: uvx isort --check --diff *.py
