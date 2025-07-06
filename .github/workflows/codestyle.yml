@@ -23,4 +23,4 @@ jobs:
       run: uv run black --check --diff --color *.py
 
     - name: Run isort
-      run: uv run isort --check --diff *.py
+      run: uv run isort --profile=black --check --diff *.py
