@@ -14,13 +14,13 @@ jobs:
         enable-cache: true
 
     - name: Install the project
-      run: uv sync --locked --all-extras --dev
+      run: uv sync --locked
 
     - name: Run pylint
-      run: uvx pylint --rcfile=.pylintrc *.py
+      run: uv run pylint --rcfile=.pylintrc *.py
 
     - name: Run black
-      run: uvx black --check --diff --color *.py
+      run: uv run black --check --diff --color *.py
 
     - name: Run isort
-      run: uvx isort --check --diff *.py
+      run: uv run isort --check --diff *.py
