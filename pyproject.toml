@@ -22,6 +22,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "pip>=25.1.1",
     "pylint>=3.3.7",
+    "pre-commit>=4.2.0",
 ]
 
 [tool.pip]

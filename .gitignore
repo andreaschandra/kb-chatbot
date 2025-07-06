@@ -9,5 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-# db
-.chroma_db/
+# custom
+chroma_db/
+.env
+.ipynb_checkpoints
