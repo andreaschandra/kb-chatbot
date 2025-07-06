@@ -14,6 +14,8 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langfuse import get_client
+from langfuse.langchain import CallbackHandler
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -48,6 +50,9 @@ class KnowledgeBaseChatbot:
 
         print("Build graph...")
         self.build_graph()
+
+        self.langfuse_client = get_client()
+        self.langfuse_handler = CallbackHandler()
 
     def load_documents(self, directory_path: str) -> List:
         """Load documents from a directory.
@@ -218,7 +223,10 @@ class KnowledgeBaseChatbot:
         if thread_id is None:
             thread_id = str(uuid4())
 
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {
+            "configurable": {"thread_id": thread_id},
+            "callbacks": [self.langfuse_handler],
+        }
         response = self.graph.invoke(
             {"messages": [{"role": "user", "content": question}]}, config
         )
