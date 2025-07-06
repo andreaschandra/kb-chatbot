@@ -18,6 +18,10 @@ dependencies = [
     "streamlit",
     "python-dotenv",
     "grandalf",
+    "uuid>=1.30",
+    "dotenv>=0.9.9",
+    "pip>=25.1.1",
+    "pylint>=3.3.7",
     "pre-commit>=4.2.0",
 ]
 

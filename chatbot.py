@@ -1,6 +1,7 @@
 """Main flow and functionality for knowledge base chatbot."""
 
 from typing import Dict, List, Tuple
+from uuid import uuid4
 
 from langchain.chat_models import init_chat_model
 from langchain_chroma import Chroma
@@ -13,6 +14,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters.character import RecursiveCharacterTextSplitter
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -41,6 +43,8 @@ class KnowledgeBaseChatbot:
         print("Init ToolNode...")
         self.retrieve = self._create_retriever()
         self.tools = ToolNode([self.retrieve])
+
+        self.memory = MemorySaver()
 
         print("Build graph...")
         self.build_graph()
@@ -195,22 +199,28 @@ class KnowledgeBaseChatbot:
         graph_builder.add_edge("tools", "generate")
         graph_builder.add_edge("generate", END)
 
-        graph = graph_builder.compile()
+        graph = graph_builder.compile(checkpointer=self.memory)
         graph.get_graph().print_ascii()
 
         self.graph = graph
 
-    def ask_question(self, question: str) -> Tuple[str, List]:
+    def ask_question(self, question: str, thread_id: str = None) -> Tuple[str, List]:
         """Return a response to a user includes retrieved documents from the knowledge base.
 
         Args:
             question (_type_): _description_
+            thread_id (str, optional): thread id in memory. Defaults to None.
 
         Returns:
             _type_: _description_
         """
+
+        if thread_id is None:
+            thread_id = str(uuid4())
+
+        config = {"configurable": {"thread_id": thread_id}}
         response = self.graph.invoke(
-            {"messages": [{"role": "user", "content": question}]}
+            {"messages": [{"role": "user", "content": question}]}, config
         )
 
         latest_response = response["messages"][-1]
