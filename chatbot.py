@@ -212,7 +212,7 @@ class KnowledgeBaseChatbot:
             thread_id (str, optional): thread id in memory. Defaults to None.
 
         Returns:
-            _type_: _description_
+            tuple: return reponse and list of retrieved documents.
         """
 
         if thread_id is None:
