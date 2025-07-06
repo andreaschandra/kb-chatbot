@@ -31,14 +31,14 @@ class KnowledgeBaseChatbot:
         )
 
         print("init HF Embeddings...")
-        self.embeddings = HuggingFaceEmbeddings(
+        embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-mpnet-base-v2"
         )
 
         print("init ChromaDB...")
         self.vector_store = Chroma(
             collection_name="docs",
-            embedding_function=self.embeddings,
+            embedding_function=embeddings,
             persist_directory="./chroma_db",
         )
 
@@ -51,7 +51,7 @@ class KnowledgeBaseChatbot:
         print("Build graph...")
         self.build_graph()
 
-        self.langfuse_client = get_client()
+        get_client()
         self.langfuse_handler = CallbackHandler()
 
     def load_documents(self, directory_path: str) -> List:
