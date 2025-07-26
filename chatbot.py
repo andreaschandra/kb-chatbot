@@ -3,6 +3,7 @@
 from typing import Dict, List, Tuple
 from uuid import uuid4
 
+from langchain import hub
 from langchain.chat_models import init_chat_model
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import (
@@ -28,6 +29,10 @@ class KnowledgeBaseChatbot:
     """Chatbot class for setting up embeddings, vector store, llm, graph, and tools."""
 
     def __init__(self):
+
+        print("pull rag template...")
+        self.prompt_template = hub.pull("andreaschandra/rag-prompt")
+
         print("init_chat_model...")
         self.llm = init_chat_model(
             "claude-3-5-haiku-latest", model_provider="anthropic"
@@ -225,23 +230,18 @@ class KnowledgeBaseChatbot:
 
         # Format into prompt
         docs_content = "\n\n".join(doc.content for doc in tool_messages)
-        system_message_content = (
-            "You are an assistant for question-answering tasks. "
-            "Use the following pieces of retrieved context to answer "
-            "the question. If you don't know the answer, say that you "
-            "don't know."
-            "Use tool calls to extract key points and summary from the retrieved documents."
-            "do not use any tool if it is not needed."
-            "\n\n"
-            f"{docs_content}"
-        )
+
+        # Retrieve latest question
         conversation_messages = [
             message
             for message in state["messages"]
             if message.type in ("human", "system")
             or (message.type == "ai" and not message.tool_calls)
         ]
-        prompt = [SystemMessage(system_message_content)] + conversation_messages
+
+        prompt = self.prompt_template.invoke(
+            {"context": docs_content, "question": conversation_messages}
+        )
 
         # Run
         llm_with_tools = self.llm.bind_tools([PointSchema])
